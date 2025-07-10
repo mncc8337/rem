@@ -31,7 +31,7 @@ enum Commands {
         #[arg(short = 'm', long = "message", default_value_t = ("take a break!").to_string())]
         message: String,
 
-        #[arg(short = 't', long = "timeout", default_value_t = 1)]
+        #[arg(short = 't', long = "timeout", default_value_t = 0)]
         timeout: i32,
         
         #[arg(short = 'u', long = "urgency", default_value_t = 1)]
