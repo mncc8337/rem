@@ -10,14 +10,14 @@ rem -c <loc> start
 rem -c <loc> add <name> <int>
 ```
 ### start the reminder process
-```rem start```
+```rem start```  
 keep this process running  
 after that you can run `rem add bla bla` or `rem remove bla bla` separately  
 ### add a reminder
-```rem add <name> <interval>```
+```rem add <name> <interval>```  
 ### remove a reminder
 ```rem remove <index>```
 get the index by running `rem list`
 ### list all reminders
-```rem list```
+```rem list```  
 use `-v` for verbose output
