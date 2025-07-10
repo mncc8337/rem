@@ -4,7 +4,7 @@ a minimal CLI interval reminder. i create this to remind myself to drink enough 
 just `cargo build --release`  
 ## usage
 for more see `rem -h` or `rem <command> -h`  
-default config location is `~/.config/rem.json`, you use other location by adding `-c <loc>` after `rem` for every command for example  
+default config location is `~/.config/rem.json`, you can use other location by adding `-c <loc>` after `rem` for every command for example  
 ```
 rem -c <loc> start
 rem -c <loc> add <name> <int>
