@@ -94,9 +94,12 @@ fn main() -> Result<(), RemError> {
                 println!("{}. {}", i, process.configman.config.entries[i].name);
                 if *verbose {
                     println!(
-                        "\tinterval: {}\n\tmessage: {}",
+                        "\tinterval: {}\n\tmessage: {}\n\turgency: {}\n\ticon: {}\n\tcreation time: {}",
                         process.configman.config.entries[i].interval,
                         process.configman.config.entries[i].message,
+                        process.configman.config.entries[i].urgency,
+                        process.configman.config.entries[i].icon,
+                        process.configman.config.entries[i].creation_time,
                     )
                 }
             }
