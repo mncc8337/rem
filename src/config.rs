@@ -8,12 +8,20 @@ use serde::{Deserialize, Serialize};
 
 pub struct ConfigManager {
     pub config: Config,
-    config_path: PathBuf,
+    pub config_path: PathBuf,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     pub entries: Vec<Entry>,
+}
+
+impl Config {
+    pub fn clone(&self) -> Self {
+         return Self {
+            entries: self.entries.clone(),
+        }
+    }
 }
 
 impl ConfigManager {

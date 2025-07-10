@@ -3,11 +3,13 @@ mod utils;
 mod entry;
 mod config;
 mod process;
+use std::sync::{Arc, Mutex};
 use clap::{Parser, Subcommand};
-use config::{generate_config, ConfigManager};
-use crate::error::RemError;
+use error::RemError;
 use home::home_dir;
 use std::path::PathBuf;
+use config::{generate_config, ConfigManager};
+use process::Process;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -31,9 +33,6 @@ enum Commands {
     },
     Remove {
         id: u32,
-
-        #[arg(short = 'k', long = "keep-next-notif")]
-        keep_next_notif: bool,
     },
     Toggle {
         id: u32,
@@ -53,43 +52,6 @@ fn expand_path(path_str: &str) -> PathBuf {
     PathBuf::from(path_str)
 }
 
-fn add(configman: &mut ConfigManager, name: String, interval: &str, message: String) -> Result<(), RemError> {
-    let seconds = utils::get_seconds(interval)?;
-
-    configman.add_entry(name, seconds, message);
-
-    Ok(())
-}
-
-fn remove(configman: &mut ConfigManager, id: u32, _keep_next_notif: bool) {
-    if id as usize >= configman.config.entries.len() {
-        eprintln!("index {} not exists", id);
-        return;
-    }
-    configman.remove_entry(id);
-}
-
-fn toggle(configman: &mut ConfigManager, id: u32) {
-    if id as usize >= configman.config.entries.len() {
-        eprintln!("index {} not exists", id);
-        return;
-    }
-    configman.toggle_entry(id);
-}
-
-fn list(configman: &ConfigManager, verbose: bool) {
-    for i in 0..configman.config.entries.len() {
-        println!("{}. {}", i, configman.config.entries[i].name);
-        if verbose {
-            println!(
-                "\tinterval: {}\n\tmessage: {}",
-                configman.config.entries[i].interval,
-                configman.config.entries[i].message,
-            )
-        }
-    }
-}
-
 fn main() -> Result<(), RemError> {
     let args = Args::parse();
 
@@ -99,14 +61,44 @@ fn main() -> Result<(), RemError> {
         std::process::exit(1);
     }
 
-    let mut configman = ConfigManager::open(config_path)?;
+    let mut process = Process::new(ConfigManager::open(config_path.clone())?);
 
     match &args.command {
-        Commands::Start {} => println!("started!"),
-        Commands::Add { name, interval, message } => add(&mut configman, name.to_string(), interval, message.to_string())?,
-        Commands::Remove { id, keep_next_notif } => remove(&mut configman, *id, *keep_next_notif),
-        Commands::Toggle { id } => toggle(&mut configman, *id),
-        Commands::List { verbose } => list(&configman, *verbose),
+        Commands::Start => {
+            let proc = Arc::new(Mutex::new(process));
+            Process::start(Arc::clone(&proc));
+        },
+        Commands::Add { name, interval, message } => {
+            let seconds = utils::get_seconds(interval)?;
+
+            process.configman.add_entry(name.to_string(), seconds, message.to_string());
+        },
+        Commands::Remove { id } => {
+            if *id as usize >= process.configman.config.entries.len() {
+                eprintln!("index {} not exists", id);
+                std::process::exit(1);
+            }
+            process.configman.remove_entry(*id);
+        },
+        Commands::Toggle { id } => {
+            if *id as usize >= process.configman.config.entries.len() {
+                eprintln!("index {} not exists", id);
+                std::process::exit(1);
+            }
+            process.configman.toggle_entry(*id);
+        },
+        Commands::List { verbose } => {
+            for i in 0..process.configman.config.entries.len() {
+                println!("{}. {}", i, process.configman.config.entries[i].name);
+                if *verbose {
+                    println!(
+                        "\tinterval: {}\n\tmessage: {}",
+                        process.configman.config.entries[i].interval,
+                        process.configman.config.entries[i].message,
+                    )
+                }
+            }
+        },
     }
      Ok(())
 }
