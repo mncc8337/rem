@@ -16,14 +16,6 @@ pub struct Config {
     pub entries: Vec<Entry>,
 }
 
-impl Config {
-    pub fn clone(&self) -> Self {
-         return Self {
-            entries: self.entries.clone(),
-        }
-    }
-}
-
 impl ConfigManager {
     pub fn open(config_path: PathBuf) -> Result<Self, RemError> {
         let content = fs::read_to_string(&config_path)
@@ -50,12 +42,14 @@ impl ConfigManager {
         Ok(())
     }
 
-    pub fn add_entry(&mut self, name: String, interval: u64, message: String) {
+    pub fn add_entry(&mut self, name: String, interval: u64, message: String, timeout: i32, urgency: u8, icon: String) {
         let new_ent = Entry {
             name,
             interval,
             message,
-            enabled: true
+            icon,
+            timeout,
+            urgency,
         };
         self.config.entries.push(new_ent);
         let _ = self.save();
@@ -63,11 +57,6 @@ impl ConfigManager {
 
     pub fn remove_entry(&mut self, id: u32) {
         self.config.entries.remove(id as usize);
-        let _ = self.save();
-    }
-
-    pub fn toggle_entry(&mut self, id: u32) {
-        self.config.entries[id as usize].enabled = !self.config.entries[id as usize].enabled;
         let _ = self.save();
     }
 }

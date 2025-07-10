@@ -30,11 +30,17 @@ enum Commands {
         
         #[arg(short = 'm', long = "message", default_value_t = ("take a break!").to_string())]
         message: String,
+
+        #[arg(short = 't', long = "timeout", default_value_t = 1)]
+        timeout: i32,
+        
+        #[arg(short = 'u', long = "urgency", default_value_t = 1)]
+        urgency: u8,
+
+        #[arg(short = 'i', long = "icon", default_value_t = ("").to_string())]
+        icon: String,
     },
     Remove {
-        id: u32,
-    },
-    Toggle {
         id: u32,
     },
     List {
@@ -68,10 +74,17 @@ fn main() -> Result<(), RemError> {
             let proc = Arc::new(Mutex::new(process));
             Process::start(Arc::clone(&proc));
         },
-        Commands::Add { name, interval, message } => {
+        Commands::Add { name, interval, message, timeout, urgency, icon } => {
             let seconds = utils::get_seconds(interval)?;
 
-            process.configman.add_entry(name.to_string(), seconds, message.to_string());
+            process.configman.add_entry(
+                name.to_string(),
+                seconds,
+                message.to_string(),
+                *timeout,
+                *urgency,
+                icon.to_string(),
+            );
         },
         Commands::Remove { id } => {
             if *id as usize >= process.configman.config.entries.len() {
@@ -79,13 +92,6 @@ fn main() -> Result<(), RemError> {
                 std::process::exit(1);
             }
             process.configman.remove_entry(*id);
-        },
-        Commands::Toggle { id } => {
-            if *id as usize >= process.configman.config.entries.len() {
-                eprintln!("index {} not exists", id);
-                std::process::exit(1);
-            }
-            process.configman.toggle_entry(*id);
         },
         Commands::List { verbose } => {
             for i in 0..process.configman.config.entries.len() {

@@ -6,11 +6,11 @@ use crate::entry::Entry;
 use std::time;
 use std::thread;
 use std::sync::{Arc, Mutex};
+extern crate libnotify;
 
 #[derive(Clone)]
 struct Remind {
-    name: String,
-    message: String,
+    entry: Entry,
     life_time: time::Duration,
     id: usize,
 }
@@ -88,17 +88,12 @@ impl Process {
         {
             let process = process.lock().unwrap();
             for (i, entry) in process.configman.config.entries.iter().enumerate() {
-                if !entry.enabled {
-                    continue;
-                }
-
                 rem_queue.push_back(Remind {
-                    name: entry.name.clone(),
-                    message: entry.message.clone(),
+                    entry: entry.clone(),
                     life_time: time::Duration::from_secs(entry.interval),
                     id: i,
                 });
-                println!("new remind {} added to queue", entry.name);
+                println!("new remind '{}' added to queue", entry.name);
             }
         }
         
@@ -108,6 +103,8 @@ impl Process {
         rem_queue = vec.into_iter().collect();
 
         let mut start_time = time::Instant::now();
+
+        libnotify::init("rem").unwrap();
 
         println!("reminder thread started");
         'main_loop: loop {
@@ -119,7 +116,7 @@ impl Process {
                     pending_len = pending.len();
                 }
                 if pending_len == 0 {
-                    println!("no reminds, waiting until config is changed");
+                    println!("no remind, waiting until config is changed");
                     loop {
                         match config_rx.recv_timeout(time::Duration::from_secs(2)) {
                             Ok(ConfigEvent::ConfigChanged) => break,
@@ -148,7 +145,7 @@ impl Process {
                         let rm = remind.clone();
                         remind.life_time += elapsed;
                         rem_queue.push_back(rm);
-                        println!("pending remind {} added to queue", remind.name.clone());
+                        println!("pending remind '{}' added to queue", remind.entry.name);
                     }
                     pending.clear();
                     // sort the queue
@@ -170,34 +167,50 @@ impl Process {
                     // the queue is sorted so we can ignore all other elements
                     break;
                 }
-                let entry = rem_queue.pop_front().unwrap();
-                println!("oi remind {}", entry.name);
+                let remind = rem_queue.pop_front().unwrap();
+
+                // create a new notification
+                let mut icon = None;
+                if remind.entry.icon != "" {
+                    icon = Some(remind.entry.icon.as_str());
+                }
+                let notif = libnotify::Notification::new(
+                    &remind.entry.name,
+                    Some(remind.entry.message.as_str()),
+                    icon
+                );
+                notif.set_category("rem");
+                notif.set_app_name("rem");
+                notif.set_timeout(remind.entry.timeout);
+                match remind.entry.urgency {
+                    0 => notif.set_urgency(libnotify::Urgency::Low),
+                    2 => notif.set_urgency(libnotify::Urgency::Critical),
+                    _ => notif.set_urgency(libnotify::Urgency::Normal),
+                }
+                notif.show().unwrap();
+                println!("'{}' reminded", remind.entry.name);
 
                 {
                     let proc = process.lock().unwrap();
                     // verify whether the entry is deleted or not
                     let deleted: bool;
-                    if entry.id < proc.configman.config.entries.len() {
-                        let config_entry = &proc.configman.config.entries[entry.id];
-                        deleted = config_entry.name != entry.name || config_entry.message != entry.message;
+                    if remind.id < proc.configman.config.entries.len() {
+                        let config_entry = &proc.configman.config.entries[remind.id];
+                        deleted = config_entry.name != remind.entry.name || config_entry.message != remind.entry.message;
                     }
                     else {
                         deleted = true;
                     }
 
                     if !deleted {
-                        let config_entry = &proc.configman.config.entries[entry.id];
-                        if !config_entry.enabled {
-                            continue;
-                        }
+                        let config_entry = &proc.configman.config.entries[remind.id];
 
                         rem_queue.push_back(Remind {
-                            name: config_entry.name.clone(),
-                            message: config_entry.message.clone(),
+                            entry: config_entry.clone(),
                             life_time: elapsed + time::Duration::from_secs(config_entry.interval),
-                            id: entry.id,
+                            id: remind.id,
                         });
-                        println!("remind {} added back to queue", config_entry.name);
+                        println!("remind '{}' added back to queue", config_entry.name);
                     }
                 }
             }
@@ -218,7 +231,6 @@ impl Process {
         let mut ks = self.kill_switch.lock().unwrap();
         *ks = true;
     }
-
 
     fn reload_config(&mut self) -> bool {
         let old_config = self.configman.config.entries.clone();
@@ -261,8 +273,7 @@ impl Process {
             let mut new_reminds = Vec::<Remind>::new();
             for i in 0..added_entry.len() {
                 new_reminds.push(Remind {
-                    name: added_entry[i].name.clone(),
-                    message: added_entry[i].message.clone(),
+                    entry: added_entry[i].clone(),
                     life_time: time::Duration::from_secs(added_entry[i].interval),
                     id: indices[i],
                 });
@@ -270,10 +281,8 @@ impl Process {
 
             changed = new_reminds.len() > 0;
 
-            {
-                let mut pending = self.pending_reminds.lock().unwrap();
-                pending.append(&mut new_reminds);
-            }
+            let mut pending = self.pending_reminds.lock().unwrap();
+            pending.append(&mut new_reminds);
 
         } else {
             changed = false;
