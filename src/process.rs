@@ -12,7 +12,6 @@ extern crate libnotify;
 struct Remind {
     entry: Entry,
     life_time: time::Duration,
-    id: usize,
 }
 
 pub struct Process {
@@ -87,11 +86,10 @@ impl Process {
         let mut rem_queue = std::collections::VecDeque::<Remind>::new();
         {
             let process = process.lock().unwrap();
-            for (i, entry) in process.configman.config.entries.iter().enumerate() {
+            for entry in &process.configman.config.entries {
                 rem_queue.push_back(Remind {
                     entry: entry.clone(),
                     life_time: time::Duration::from_secs(entry.interval),
-                    id: i,
                 });
                 println!("new remind '{}' added to queue", entry.name);
             }
@@ -142,8 +140,9 @@ impl Process {
                 let mut pending = proc.pending_reminds.lock().unwrap();
                 if pending.len() > 0 {
                     for remind in pending.iter_mut() {
-                        let rm = remind.clone();
-                        remind.life_time += elapsed;
+                        let mut rm = remind.clone();
+                        rm.life_time = time::Duration::from_secs(remind.entry.interval);
+                        rm.life_time += elapsed;
                         rem_queue.push_back(rm);
                         println!("pending remind '{}' added to queue", remind.entry.name);
                     }
@@ -181,7 +180,7 @@ impl Process {
                 );
                 notif.set_category("rem");
                 notif.set_app_name("rem");
-                notif.set_timeout(remind.entry.timeout);
+                notif.set_timeout(0);
                 match remind.entry.urgency {
                     0 => notif.set_urgency(libnotify::Urgency::Low),
                     2 => notif.set_urgency(libnotify::Urgency::Critical),
@@ -193,25 +192,17 @@ impl Process {
                 {
                     let proc = process.lock().unwrap();
                     // verify whether the entry is deleted or not
-                    let deleted: bool;
-                    if remind.id < proc.configman.config.entries.len() {
-                        let config_entry = &proc.configman.config.entries[remind.id];
-                        deleted = config_entry.name != remind.entry.name || config_entry.message != remind.entry.message;
-                    }
-                    else {
-                        deleted = true;
+                    for entry in &proc.configman.config.entries {
+                        if entry.creation_time == remind.entry.creation_time {
+                            rem_queue.push_back(Remind {
+                                entry: entry.clone(),
+                                life_time: elapsed + time::Duration::from_secs(entry.interval),
+                            });
+                            println!("remind '{}' added back to queue", entry.name);
+                            break;
+                        }
                     }
 
-                    if !deleted {
-                        let config_entry = &proc.configman.config.entries[remind.id];
-
-                        rem_queue.push_back(Remind {
-                            entry: config_entry.clone(),
-                            life_time: elapsed + time::Duration::from_secs(config_entry.interval),
-                            id: remind.id,
-                        });
-                        println!("remind '{}' added back to queue", config_entry.name);
-                    }
                 }
             }
             // sort the queue
@@ -235,6 +226,7 @@ impl Process {
     fn reload_config(&mut self) -> bool {
         let old_config = self.configman.config.entries.clone();
         let result = ConfigManager::open(self.configman.config_path.clone());
+        let new_config: ConfigManager;
         match result {
             Err(e) => {
                 println!("error while loading config: {:?}", e);
@@ -242,15 +234,15 @@ impl Process {
                 return false;
             },
             Ok(c) => {
-                self.configman = c;
+                new_config = c;
             },
         }
         
         let changed: bool;
 
-        if old_config != self.configman.config.entries {
+        if old_config != new_config.config.entries {
             let hs_old: HashSet<_> = old_config.iter().cloned().collect();
-            let hs_new: HashSet<_> = self.configman.config.entries.iter().cloned().collect();
+            let hs_new: HashSet<_> = new_config.config.entries.iter().cloned().collect();
 
             let added_entry: Vec<Entry> = hs_new
                 .difference(&hs_old)
@@ -258,24 +250,11 @@ impl Process {
                 .into_iter()
                 .collect();
 
-            let indices: Vec<usize> = hs_new
-                .iter()
-                .enumerate()
-                .filter_map(|(i, val)| {
-                    if !hs_old.contains(val) {
-                        Some(i)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
             let mut new_reminds = Vec::<Remind>::new();
             for i in 0..added_entry.len() {
                 new_reminds.push(Remind {
                     entry: added_entry[i].clone(),
-                    life_time: time::Duration::from_secs(added_entry[i].interval),
-                    id: indices[i],
+                    life_time: time::Duration::from_secs(0),
                 });
             }
 
@@ -283,6 +262,7 @@ impl Process {
 
             let mut pending = self.pending_reminds.lock().unwrap();
             pending.append(&mut new_reminds);
+            self.configman = new_config;
 
         } else {
             changed = false;

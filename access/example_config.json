@@ -4,17 +4,17 @@
             "name": "drink water",
             "interval": 7200,
             "message": "stay hydrated!",
-            "timeout": 0,
             "urgency": 1,
-            "icon": ""
+            "icon": "",
+            "creation_time": 0
         },
         {
             "name": "eye rest",
             "interval": 1200,
             "message": "have a rest",
-            "timeout": 0,
             "urgency": 1,
-            "icon": ""
+            "icon": "",
+            "creation_time": 0
         }
     ]
 }

@@ -31,9 +31,6 @@ enum Commands {
         #[arg(short = 'm', long = "message", default_value_t = ("take a break!").to_string())]
         message: String,
 
-        #[arg(short = 't', long = "timeout", default_value_t = 0)]
-        timeout: i32,
-        
         #[arg(short = 'u', long = "urgency", default_value_t = 1)]
         urgency: u8,
 
@@ -74,14 +71,13 @@ fn main() -> Result<(), RemError> {
             let proc = Arc::new(Mutex::new(process));
             Process::start(Arc::clone(&proc));
         },
-        Commands::Add { name, interval, message, timeout, urgency, icon } => {
+        Commands::Add { name, interval, message, urgency, icon } => {
             let seconds = utils::get_seconds(interval)?;
 
             process.configman.add_entry(
                 name.to_string(),
                 seconds,
                 message.to_string(),
-                *timeout,
                 *urgency,
                 icon.to_string(),
             );

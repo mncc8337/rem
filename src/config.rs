@@ -42,15 +42,14 @@ impl ConfigManager {
         Ok(())
     }
 
-    pub fn add_entry(&mut self, name: String, interval: u64, message: String, timeout: i32, urgency: u8, icon: String) {
-        let new_ent = Entry {
+    pub fn add_entry(&mut self, name: String, interval: u64, message: String, urgency: u8, icon: String) {
+        let new_ent = Entry::new(
             name,
             interval,
             message,
-            icon,
-            timeout,
             urgency,
-        };
+            icon,
+        );
         self.config.entries.push(new_ent);
         let _ = self.save();
     }
